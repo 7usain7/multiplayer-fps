@@ -1,0 +1,93 @@
+# Sensitive configuration
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.secret
+secrets.json
+credentials
+credentials.*
+
+# Keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.der
+*.crt
+*.cer
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+
+# Cloud and service credentials
+.aws/
+.ssh/
+.gnupg/
+service-account*.json
+serviceAccount*.json
+firebase-adminsdk*.json
+google-services.json
+GoogleService-Info.plist
+
+# Application-specific secret configuration
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Local.json
+application-local.properties
+application-prod.properties
+application-production.properties
+application-local.yml
+application-local.yaml
+
+# Databases and backups
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.bak
+
+# Dependencies
+node_modules/
+vendor/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Build output
+dist/
+build/
+out/
+target/
+obj/
+.next/
+.nuxt/
+.expo/
+coverage/
+
+# Logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+.cache/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Environment and sensitive configuration
+secret.*
+
+# Requirements
+requirements.md
+audit.md
