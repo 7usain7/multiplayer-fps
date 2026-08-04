@@ -9,7 +9,7 @@ pub use protocol::{
     deserialize_packet, serialize_packet, ClientPacket, PlayerState, ProjectileState,
     ServerPacket,
 };
-pub use render::{FirstPersonRenderer, MiniMapRenderer};
+pub use render::{FirstPersonRenderer, HudRenderer, MiniMapRenderer};
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")

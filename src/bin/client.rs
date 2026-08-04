@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use macroquad::prelude::*;
 use multiplayer_fps::maze::get_level;
 use multiplayer_fps::physics::move_and_slide;
-use multiplayer_fps::render::{FirstPersonRenderer, MiniMapRenderer};
+use multiplayer_fps::render::{FirstPersonRenderer, HudRenderer, MiniMapRenderer};
 use multiplayer_fps::version;
 
 pub struct ClientConfig {
@@ -68,24 +68,25 @@ pub fn prompt_connection_info() -> ClientConfig {
 #[macroquad::main(window_conf)]
 async fn main() {
     let config = prompt_connection_info();
-    println!(
-        "Connecting to server at {} as username '{}'",
-        config.server_addr, config.username
-    );
 
     // Load Level 1 map for local rendering test
-    let map = get_level(1);
+    let current_level: u8 = 3;
+    let map = get_level(current_level);
     let fp_renderer = FirstPersonRenderer::default();
     let minimap_renderer = MiniMapRenderer::default();
 
     // Spawn player at initial spawn position
     let spawns = map.find_spawn_positions();
     let (mut pos_x, mut pos_y) = spawns.first().copied().unwrap_or((1.5, 1.5));
-    let mut yaw: f32 = 0.0; // facing direction in radians
+    let mut yaw: f32 = 0.0;
 
     let move_speed = 3.0;
     let turn_speed = 2.5;
     let player_radius = 0.3;
+
+    let health: u32 = 100;
+
+    let max_health: u32 = 100;
 
     loop {
         let dt = get_frame_time();
@@ -127,7 +128,21 @@ async fn main() {
             pos_y,
             yaw,
             fp_renderer.fov_rad,
-            &[], // No other players in local preview
+            &[],
+        );
+
+        // 3. Draw On-Screen HUD & Real-Time FPS Counter
+        let fps = get_fps();
+        let server_str = config.server_addr.to_string();
+        HudRenderer::draw(
+            fps,
+            &config.username,
+            &server_str,
+            current_level,
+            health,
+            max_health,
+            screen_width(),
+            screen_height(),
         );
 
         next_frame().await;
