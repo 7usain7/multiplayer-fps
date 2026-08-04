@@ -91,3 +91,8 @@ secret.*
 # Requirements
 requirements.md
 audit.md
+
+
+# Added by cargo
+
+/target
