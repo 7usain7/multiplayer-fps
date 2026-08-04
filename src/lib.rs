@@ -1,7 +1,9 @@
 pub mod maze;
+pub mod physics;
 pub mod protocol;
 
 pub use maze::{MazeMap, TileType};
+pub use physics::{cast_ray, check_wall_collision, move_and_slide, RayHit};
 pub use protocol::{
     deserialize_packet, serialize_packet, ClientPacket, PlayerState, ProjectileState,
     ServerPacket,
@@ -57,5 +59,41 @@ mod tests {
         let decoded_server: ServerPacket =
             deserialize_packet(&encoded_server).expect("Failed to deserialize ServerPacket");
         assert_eq!(welcome_packet, decoded_server);
+    }
+
+    #[test]
+    fn test_physics_collision_and_sliding() {
+        let mut map = MazeMap::new(5, 5, TileType::Wall);
+        map.set_tile(1, 1, TileType::Empty);
+        map.set_tile(2, 1, TileType::Empty);
+
+        // Position inside (1, 1) cell center is (1.5, 1.5)
+        let player_r = 0.3;
+        assert!(!check_wall_collision(&map, 1.5, 1.5, player_r));
+
+        // Moving towards wall at (1, 0) - moving UP (negative Y)
+        let (new_x, new_y) = move_and_slide(&map, 1.5, 1.5, 0.0, -0.4, player_r);
+        assert_eq!(new_y, 1.5); // Y movement blocked by wall at (1, 0)
+        assert_eq!(new_x, 1.5);
+
+        // Moving towards empty tile (2, 1) - moving RIGHT (positive X)
+        let (new_x2, new_y2) = move_and_slide(&map, 1.5, 1.5, 0.4, 0.0, player_r);
+        assert_eq!(new_x2, 1.9); // X movement succeeded
+        assert_eq!(new_y2, 1.5);
+    }
+
+    #[test]
+    fn test_raycasting() {
+        let mut map = MazeMap::new(5, 5, TileType::Wall);
+        map.set_tile(1, 1, TileType::Empty);
+        map.set_tile(2, 1, TileType::Empty);
+
+        // Cast ray from (1.5, 1.5) facing right (0.0 rad)
+        let hit = cast_ray(&map, 1.5, 1.5, 0.0, 10.0);
+        assert!(hit.is_some());
+        let ray = hit.unwrap();
+        assert_eq!(ray.grid_x, 3);
+        assert_eq!(ray.grid_y, 1);
+        assert!(ray.distance > 0.0);
     }
 }
