@@ -1,6 +1,7 @@
 pub mod maze;
 pub mod physics;
 pub mod protocol;
+pub mod render;
 
 pub use maze::{get_level, parse_ascii_map, MazeMap, TileType};
 pub use physics::{cast_ray, check_wall_collision, move_and_slide, RayHit};
@@ -8,6 +9,7 @@ pub use protocol::{
     deserialize_packet, serialize_packet, ClientPacket, PlayerState, ProjectileState,
     ServerPacket,
 };
+pub use render::FirstPersonRenderer;
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")

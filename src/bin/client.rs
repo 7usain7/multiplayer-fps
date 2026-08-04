@@ -1,6 +1,9 @@
 use std::io::{self, Write};
 use std::net::SocketAddr;
 use macroquad::prelude::*;
+use multiplayer_fps::maze::get_level;
+use multiplayer_fps::physics::move_and_slide;
+use multiplayer_fps::render::FirstPersonRenderer;
 use multiplayer_fps::version;
 
 pub struct ClientConfig {
@@ -24,7 +27,6 @@ pub fn prompt_connection_info() -> ClientConfig {
     let stdout = io::stdout();
     let mut handle = stdout.lock();
 
-    // 1. Prompt for IP address
     print!("Enter IP Address [default: 127.0.0.1:34254]: ");
     handle.flush().unwrap();
 
@@ -43,7 +45,6 @@ pub fn prompt_connection_info() -> ClientConfig {
         "127.0.0.1:34254".parse().unwrap()
     };
 
-    // 2. Prompt for Username
     print!("Enter Name: ");
     handle.flush().unwrap();
 
@@ -67,23 +68,56 @@ pub fn prompt_connection_info() -> ClientConfig {
 #[macroquad::main(window_conf)]
 async fn main() {
     let config = prompt_connection_info();
-
     println!(
-        "Client connected configuration -> Server: {}, Username: {}",
+        "Connecting to server at {} as username '{}'",
         config.server_addr, config.username
     );
 
-    // Basic GUI loop placeholder for Step 2.1
+    // Load Level 1 map for local rendering test
+    let map = get_level(1);
+    let renderer = FirstPersonRenderer::default();
+
+    // Spawn player at initial spawn position
+    let spawns = map.find_spawn_positions();
+    let (mut pos_x, mut pos_y) = spawns.first().copied().unwrap_or((1.5, 1.5));
+    let mut yaw: f32 = 0.0; // facing direction in radians
+
+    let move_speed = 3.0;
+    let turn_speed = 2.5;
+    let player_radius = 0.3;
+
     loop {
+        let dt = get_frame_time();
+
+        // Handle turning controls (Left / Right arrows or A / D)
+        if is_key_down(KeyCode::Left) || is_key_down(KeyCode::A) {
+            yaw -= turn_speed * dt;
+        }
+        if is_key_down(KeyCode::Right) || is_key_down(KeyCode::D) {
+            yaw += turn_speed * dt;
+        }
+
+        // Handle forward / backward movement controls (W / S or Up / Down)
+        let mut forward = 0.0;
+        if is_key_down(KeyCode::Up) || is_key_down(KeyCode::W) {
+            forward += 1.0;
+        }
+        if is_key_down(KeyCode::Down) || is_key_down(KeyCode::S) {
+            forward -= 1.0;
+        }
+
+        if forward != 0.0 {
+            let dx = yaw.cos() * forward * move_speed * dt;
+            let dy = yaw.sin() * forward * move_speed * dt;
+            let (next_x, next_y) = move_and_slide(&map, pos_x, pos_y, dx, dy, player_radius);
+            pos_x = next_x;
+            pos_y = next_y;
+        }
+
         clear_background(BLACK);
 
-        draw_text(
-            &format!("Connecting to {} as {}...", config.server_addr, config.username),
-            20.0,
-            40.0,
-            24.0,
-            WHITE,
-        );
+        // Draw 3D First-Person View
+        renderer.draw(&map, pos_x, pos_y, yaw, screen_width(), screen_height());
 
         next_frame().await;
     }
