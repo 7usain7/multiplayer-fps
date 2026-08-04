@@ -10,7 +10,7 @@ pub struct FirstPersonRenderer {
 impl Default for FirstPersonRenderer {
     fn default() -> Self {
         Self {
-            fov_rad: std::f32::consts::FRAC_PI_3, // 60 degrees Field of View
+            fov_rad: 90.0f32.to_radians(), // Wider 80 degrees Field of View
             max_render_dist: 20.0,
         }
     }

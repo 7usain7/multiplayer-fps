@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use macroquad::prelude::*;
 use multiplayer_fps::maze::get_level;
 use multiplayer_fps::physics::move_and_slide;
-use multiplayer_fps::render::FirstPersonRenderer;
+use multiplayer_fps::render::{FirstPersonRenderer, MiniMapRenderer};
 use multiplayer_fps::version;
 
 pub struct ClientConfig {
@@ -75,7 +75,8 @@ async fn main() {
 
     // Load Level 1 map for local rendering test
     let map = get_level(1);
-    let renderer = FirstPersonRenderer::default();
+    let fp_renderer = FirstPersonRenderer::default();
+    let minimap_renderer = MiniMapRenderer::default();
 
     // Spawn player at initial spawn position
     let spawns = map.find_spawn_positions();
@@ -116,8 +117,18 @@ async fn main() {
 
         clear_background(BLACK);
 
-        // Draw 3D First-Person View
-        renderer.draw(&map, pos_x, pos_y, yaw, screen_width(), screen_height());
+        // 1. Draw 3D First-Person View
+        fp_renderer.draw(&map, pos_x, pos_y, yaw, screen_width(), screen_height());
+
+        // 2. Draw 2D Mini-Map Overlay
+        minimap_renderer.draw(
+            &map,
+            pos_x,
+            pos_y,
+            yaw,
+            fp_renderer.fov_rad,
+            &[], // No other players in local preview
+        );
 
         next_frame().await;
     }
