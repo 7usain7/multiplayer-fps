@@ -8,8 +8,9 @@ pub enum TileType {
     Exit,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MazeMap {
+
     pub width: usize,
     pub height: usize,
     pub tiles: Vec<TileType>, // Row-major order: index = y * width + x

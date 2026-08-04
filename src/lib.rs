@@ -1,6 +1,11 @@
 pub mod maze;
+pub mod protocol;
 
 pub use maze::{MazeMap, TileType};
+pub use protocol::{
+    deserialize_packet, serialize_packet, ClientPacket, PlayerState, ProjectileState,
+    ServerPacket,
+};
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -29,5 +34,28 @@ mod tests {
         let spawns = map.find_spawn_positions();
         assert_eq!(spawns.len(), 1);
         assert_eq!(spawns[0], (2.5, 2.5));
+    }
+
+    #[test]
+    fn test_packet_serialization() {
+        let connect_packet = ClientPacket::Connect {
+            username: "TestPlayer".to_string(),
+        };
+        let encoded = serialize_packet(&connect_packet).expect("Failed to serialize ClientPacket");
+        let decoded: ClientPacket =
+            deserialize_packet(&encoded).expect("Failed to deserialize ClientPacket");
+        assert_eq!(connect_packet, decoded);
+
+        let map = MazeMap::new(4, 4, TileType::Empty);
+        let welcome_packet = ServerPacket::Welcome {
+            player_id: 42,
+            map,
+            level: 1,
+        };
+        let encoded_server =
+            serialize_packet(&welcome_packet).expect("Failed to serialize ServerPacket");
+        let decoded_server: ServerPacket =
+            deserialize_packet(&encoded_server).expect("Failed to deserialize ServerPacket");
+        assert_eq!(welcome_packet, decoded_server);
     }
 }
