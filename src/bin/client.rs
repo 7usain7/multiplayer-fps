@@ -1,8 +1,8 @@
 use std::io::{self, Write};
 use std::net::SocketAddr;
 use macroquad::prelude::*;
+use multiplayer_fps::input::ClientInputController;
 use multiplayer_fps::maze::get_level;
-use multiplayer_fps::physics::move_and_slide;
 use multiplayer_fps::render::{FirstPersonRenderer, HudRenderer, MiniMapRenderer};
 use multiplayer_fps::version;
 
@@ -68,53 +68,32 @@ pub fn prompt_connection_info() -> ClientConfig {
 #[macroquad::main(window_conf)]
 async fn main() {
     let config = prompt_connection_info();
+    println!(
+        "Connecting to server at {} as username '{}'",
+        config.server_addr, config.username
+    );
 
-    // Load Level 1 map for local rendering test
-    let current_level: u8 = 3;
+    let current_level: u8 = 1;
     let map = get_level(current_level);
     let fp_renderer = FirstPersonRenderer::default();
     let minimap_renderer = MiniMapRenderer::default();
+    let mut input_controller = ClientInputController::default();
 
-    // Spawn player at initial spawn position
     let spawns = map.find_spawn_positions();
     let (mut pos_x, mut pos_y) = spawns.first().copied().unwrap_or((1.5, 1.5));
     let mut yaw: f32 = 0.0;
 
-    let move_speed = 3.0;
-    let turn_speed = 2.5;
-    let player_radius = 0.3;
-
     let health: u32 = 100;
-
     let max_health: u32 = 100;
 
     loop {
         let dt = get_frame_time();
 
-        // Handle turning controls (Left / Right arrows or A / D)
-        if is_key_down(KeyCode::Left) || is_key_down(KeyCode::A) {
-            yaw -= turn_speed * dt;
-        }
-        if is_key_down(KeyCode::Right) || is_key_down(KeyCode::D) {
-            yaw += turn_speed * dt;
-        }
-
-        // Handle forward / backward movement controls (W / S or Up / Down)
-        let mut forward = 0.0;
-        if is_key_down(KeyCode::Up) || is_key_down(KeyCode::W) {
-            forward += 1.0;
-        }
-        if is_key_down(KeyCode::Down) || is_key_down(KeyCode::S) {
-            forward -= 1.0;
-        }
-
-        if forward != 0.0 {
-            let dx = yaw.cos() * forward * move_speed * dt;
-            let dy = yaw.sin() * forward * move_speed * dt;
-            let (next_x, next_y) = move_and_slide(&map, pos_x, pos_y, dx, dy, player_radius);
-            pos_x = next_x;
-            pos_y = next_y;
-        }
+        // Sample input and perform local client prediction
+        let input_res = input_controller.update(&map, pos_x, pos_y, yaw, dt);
+        pos_x = input_res.new_x;
+        pos_y = input_res.new_y;
+        yaw = input_res.new_yaw;
 
         clear_background(BLACK);
 

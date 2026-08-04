@@ -1,8 +1,10 @@
+pub mod input;
 pub mod maze;
 pub mod physics;
 pub mod protocol;
 pub mod render;
 
+pub use input::ClientInputController;
 pub use maze::{get_level, parse_ascii_map, MazeMap, TileType};
 pub use physics::{cast_ray, check_wall_collision, move_and_slide, RayHit};
 pub use protocol::{
