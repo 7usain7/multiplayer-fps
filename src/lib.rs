@@ -13,7 +13,7 @@ pub use protocol::{
     ServerPacket,
 };
 pub use render::{FirstPersonRenderer, HudRenderer, MiniMapRenderer};
-pub use server::ServerNetworkSocket;
+pub use server::{PlayerSession, ServerNetworkSocket, SessionManager};
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -112,9 +112,7 @@ mod tests {
     #[test]
     fn test_udp_socket_binding() {
         if let Ok(server_net) = ServerNetworkSocket::bind("127.0.0.1:0") {
-            // Binding succeeded
             drop(server_net);
         }
     }
-
 }

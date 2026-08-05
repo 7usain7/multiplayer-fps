@@ -1,6 +1,8 @@
 use std::thread;
 use std::time::Duration;
-use multiplayer_fps::{version, ServerNetworkSocket};
+use multiplayer_fps::maze::get_level;
+use multiplayer_fps::protocol::ClientPacket;
+use multiplayer_fps::{version, ServerNetworkSocket, SessionManager};
 
 fn main() {
     println!("Starting Multiplayer FPS Server v{}...", version());
@@ -14,16 +16,39 @@ fn main() {
         }
     };
 
-    println!("Server main loop active. Listening for UDP clients...");
+    let current_level: u8 = 1;
+    let map = get_level(current_level);
+    let mut session_manager = SessionManager::new(16);
 
-    // Server loop listening for packets
+    println!("Server loop running on {}. Ready for player handshakes...", bind_addr);
+
     loop {
         let packets = server_socket.poll_packets();
         for (src_addr, packet) in packets {
-            println!("Received UDP packet from {}: {:?}", src_addr, packet);
+            match packet {
+                ClientPacket::Connect { username } => {
+                    session_manager.handle_connect(
+                        &server_socket,
+                        src_addr,
+                        username,
+                        current_level,
+                        &map,
+                    );
+                }
+                ClientPacket::Ping { timestamp } => {
+                    let pong = multiplayer_fps::ServerPacket::Pong { timestamp };
+                    let _ = server_socket.send_to(src_addr, &pong);
+                }
+                _ => {
+                    // Update heartbeat for active sessions
+                    if let Some(session) = session_manager.get_session_mut(&src_addr) {
+                        session.last_seen = std::time::Instant::now();
+                    }
+                }
+            }
         }
 
-        // Tick delay ~60Hz
+        // Tick loop ~60Hz
         thread::sleep(Duration::from_millis(16));
     }
 }
