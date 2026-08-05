@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use macroquad::prelude::*;
 use crate::maze::MazeMap;
 use crate::physics::cast_ray;
@@ -13,6 +14,7 @@ pub struct DirectionalTextures {
 pub struct FirstPersonRenderer {
     pub fov_rad: f32,
     pub max_render_dist: f32,
+    z_buffer_cache: RefCell<Vec<f32>>,
 }
 
 impl Default for FirstPersonRenderer {
@@ -20,6 +22,7 @@ impl Default for FirstPersonRenderer {
         Self {
             fov_rad: 90.0f32.to_radians(), // 90 degrees FOV
             max_render_dist: 20.0,
+            z_buffer_cache: RefCell::new(Vec::with_capacity(600)),
         }
     }
 }
@@ -29,10 +32,12 @@ impl FirstPersonRenderer {
         Self {
             fov_rad: fov_deg.to_radians(),
             max_render_dist: 20.0,
+            z_buffer_cache: RefCell::new(Vec::with_capacity(600)),
         }
     }
 
     /// Normalize angle into [-PI, PI] range
+    #[inline]
     fn normalize_angle(angle: f32) -> f32 {
         let mut a = angle;
         while a > std::f32::consts::PI {
@@ -66,8 +71,11 @@ impl FirstPersonRenderer {
         let num_columns = (screen_w / 2.0) as usize; // 2 pixels per column for high FPS
         let col_width = screen_w / num_columns as f32;
         let half_fov = self.fov_rad / 2.0;
+        let half_fov_tan = half_fov.tan();
 
-        let mut z_buffer = vec![f32::INFINITY; num_columns];
+        let mut z_buffer = self.z_buffer_cache.borrow_mut();
+        z_buffer.clear();
+        z_buffer.resize(num_columns, f32::INFINITY);
 
         for col in 0..num_columns {
             let screen_ratio = (col as f32 / num_columns as f32) * 2.0 - 1.0;
@@ -149,7 +157,7 @@ impl FirstPersonRenderer {
             });
 
             // Project opponent onto 2D screen coordinates
-            let screen_ratio = angle_to_player.tan() / half_fov.tan();
+            let screen_ratio = angle_to_player.tan() / half_fov_tan;
             let sprite_center_x = (screen_w / 2.0) + (screen_ratio * (screen_w / 2.0));
             let sprite_h = (screen_h / dist).clamp(10.0, screen_h * 1.5);
             let sprite_w = sprite_h * 0.8;

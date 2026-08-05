@@ -24,8 +24,10 @@ impl StateBroadcaster {
             projectiles,
         };
 
-        for &client_addr in sessions.sessions().keys() {
-            let _ = socket.send_to(client_addr, &state_update);
+        if let Ok(bytes) = crate::protocol::serialize_packet(&state_update) {
+            for &client_addr in sessions.sessions().keys() {
+                let _ = socket.send_bytes(client_addr, &bytes);
+            }
         }
     }
 }

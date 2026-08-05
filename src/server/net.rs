@@ -62,4 +62,9 @@ impl ServerNetworkSocket {
             }
         }
     }
+
+    /// Send pre-serialized raw packet bytes directly to a client address.
+    pub fn send_bytes(&self, target_addr: SocketAddr, bytes: &[u8]) -> io::Result<usize> {
+        self.socket.send_to(bytes, target_addr)
+    }
 }
