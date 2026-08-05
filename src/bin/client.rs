@@ -4,7 +4,8 @@ use macroquad::prelude::*;
 use multiplayer_fps::input::ClientInputController;
 use multiplayer_fps::maze::get_level;
 use multiplayer_fps::protocol::{
-    deserialize_packet, serialize_packet, ClientPacket, PlayerState, ServerPacket,
+    deserialize_packet, serialize_packet, ClientPacket, PlayerState, ProjectileState,
+    ServerPacket,
 };
 use multiplayer_fps::render::{FirstPersonRenderer, HudRenderer, MiniMapRenderer};
 use multiplayer_fps::version;
@@ -100,6 +101,7 @@ async fn main() {
     let mut my_player_id: Option<u32> = None;
 
     let mut other_players: Vec<PlayerState> = Vec::new();
+    let mut active_projectiles: Vec<ProjectileState> = Vec::new();
     let mut health: u32 = 100;
     let max_health: u32 = 100;
     let mut recv_buf = [0u8; 4096];
@@ -135,12 +137,12 @@ async fn main() {
                                 }
                                 ServerPacket::StateUpdate {
                                     players,
+                                    projectiles,
                                     ..
                                 } => {
                                     let mut opponents = Vec::new();
                                     for p in players {
                                         if Some(p.id) == my_player_id {
-                                            // Reconcile position if server and local prediction diverge
                                             let dist_sq = (pos_x - p.x).powi(2) + (pos_y - p.y).powi(2);
                                             if dist_sq > 0.8 {
                                                 pos_x = p.x;
@@ -152,6 +154,7 @@ async fn main() {
                                         }
                                     }
                                     other_players = opponents;
+                                    active_projectiles = projectiles;
                                 }
                                 ServerPacket::PlayerLeft { id } => {
                                     other_players.retain(|p| p.id != id);
@@ -192,7 +195,7 @@ async fn main() {
         // 3. Render 3D First-Person View
         fp_renderer.draw(&map, pos_x, pos_y, yaw, screen_width(), screen_height());
 
-        // 4. Render 2D Mini-Map Overlay (including connected opponents)
+        // 4. Render 2D Mini-Map Overlay (including connected opponents & active projectiles)
         minimap_renderer.draw(
             &map,
             pos_x,
@@ -200,6 +203,7 @@ async fn main() {
             yaw,
             fp_renderer.fov_rad,
             &other_players,
+            &active_projectiles,
         );
 
         // 5. Render On-Screen HUD & Real-Time FPS Counter

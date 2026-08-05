@@ -1,6 +1,6 @@
 use macroquad::prelude::*;
 use crate::maze::{MazeMap, TileType};
-use crate::protocol::PlayerState;
+use crate::protocol::{PlayerState, ProjectileState};
 
 pub struct MiniMapRenderer {
     pub map_scale: f32, // Pixels per grid cell
@@ -28,7 +28,7 @@ impl MiniMapRenderer {
     }
 
     /// Render 2D top-down mini-map HUD showing maze layout, player position + tight vision cone,
-    /// and opponent player positions.
+    /// opponent player positions, and active projectiles.
     pub fn draw(
         &self,
         map: &MazeMap,
@@ -37,6 +37,7 @@ impl MiniMapRenderer {
         self_yaw: f32,
         fov_rad: f32,
         other_players: &[PlayerState],
+        projectiles: &[ProjectileState],
     ) {
         let map_w_px = map.width as f32 * self.map_scale;
         let map_h_px = map.height as f32 * self.map_scale;
@@ -105,7 +106,13 @@ impl MiniMapRenderer {
             )
         };
 
-        // 3. Draw Opponent Players (Red Dots)
+        // 3. Draw Active Projectiles (Yellow Dots)
+        for proj in projectiles {
+            let (pr_x, pr_y) = world_to_map_px(proj.x, proj.y);
+            draw_circle(pr_x, pr_y, 2.0, Color::new(1.0, 0.9, 0.2, 1.0));
+        }
+
+        // 4. Draw Opponent Players (Red Dots)
         for player in other_players {
             if player.is_alive {
                 let (op_x, op_y) = world_to_map_px(player.x, player.y);
@@ -113,7 +120,7 @@ impl MiniMapRenderer {
             }
         }
 
-        // 4. Draw Tight & Compact FOV Vision Cone
+        // 5. Draw Tight & Compact FOV Vision Cone
         let (p_px, p_py) = world_to_map_px(self_x, self_y);
         let half_fov = (fov_rad * 0.5) / 2.0; // Tighter half-angle (~20 degrees)
         let cone_len = 1.2 * self.map_scale;  // Compact length (12 pixels)
@@ -135,7 +142,7 @@ impl MiniMapRenderer {
         draw_line(p_px, p_py, left_x, left_y, 1.0, Color::new(0.0, 1.0, 0.5, 0.7));
         draw_line(p_px, p_py, right_x, right_y, 1.0, Color::new(0.0, 1.0, 0.5, 0.7));
 
-        // 5. Draw Self Player Circle
+        // 6. Draw Self Player Circle
         draw_circle(p_px, p_py, 3.5, Color::new(0.0, 1.0, 0.3, 1.0));
     }
 }

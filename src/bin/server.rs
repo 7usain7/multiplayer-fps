@@ -18,7 +18,7 @@ fn main() {
         }
     };
 
-    let current_level: u8 = 3;
+    let current_level: u8 = 1;
     let map = get_level(current_level);
     let mut session_manager = SessionManager::new(16);
     let mut game_loop = ServerGameLoop::default();
@@ -66,13 +66,17 @@ fn main() {
         // 2. Clean up timed-out player sessions (>10 seconds inactivity)
         session_manager.clean_timed_out_sessions(&server_socket, timeout_duration);
 
-        // 3. Advance server tick
+        // 3. Update server projectile positions and wall collisions
+        game_loop.update_projectiles(&map, dt);
+
+        // 4. Advance server tick
         let tick = game_loop.advance_tick();
 
-        // 4. Broadcast state update snapshot over UDP to all connected clients
-        StateBroadcaster::broadcast(&server_socket, &session_manager, tick, Vec::new());
+        // 5. Broadcast state update snapshot over UDP to all connected clients
+        let active_projectiles = game_loop.active_projectile_states();
+        StateBroadcaster::broadcast(&server_socket, &session_manager, tick, active_projectiles);
 
-        // 5. Maintain 60Hz tick timing
+        // 6. Maintain 60Hz tick timing
         let elapsed = now.elapsed();
         if elapsed < tick_duration {
             thread::sleep(tick_duration - elapsed);
