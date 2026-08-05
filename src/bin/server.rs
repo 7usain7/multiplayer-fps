@@ -2,7 +2,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 use multiplayer_fps::maze::get_level;
 use multiplayer_fps::protocol::ClientPacket;
-use multiplayer_fps::{version, ServerGameLoop, ServerNetworkSocket, SessionManager};
+use multiplayer_fps::{
+    version, ServerGameLoop, ServerNetworkSocket, SessionManager, StateBroadcaster,
+};
 
 fn main() {
     println!("Starting Multiplayer FPS Server v{}...", version());
@@ -58,9 +60,12 @@ fn main() {
         }
 
         // 2. Advance server tick
-        game_loop.advance_tick();
+        let tick = game_loop.advance_tick();
 
-        // 3. Maintain 60Hz tick timing
+        // 3. Broadcast state update snapshot over UDP to all connected clients
+        StateBroadcaster::broadcast(&server_socket, &session_manager, tick, Vec::new());
+
+        // 4. Maintain 60Hz tick timing
         let elapsed = now.elapsed();
         if elapsed < tick_duration {
             thread::sleep(tick_duration - elapsed);
