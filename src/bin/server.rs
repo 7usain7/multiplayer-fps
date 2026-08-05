@@ -66,17 +66,20 @@ fn main() {
         // 2. Clean up timed-out player sessions (>10 seconds inactivity)
         session_manager.clean_timed_out_sessions(&server_socket, timeout_duration);
 
-        // 3. Update server projectile positions and wall collisions
-        game_loop.update_projectiles(&map, dt);
+        // 3. Update server projectile positions, wall collisions, and player hit detection
+        game_loop.update_projectiles(&mut session_manager, &map, dt);
 
-        // 4. Advance server tick
+        // 4. Respawn dead players after 3-second death timer
+        session_manager.respawn_dead_players(&map);
+
+        // 5. Advance server tick
         let tick = game_loop.advance_tick();
 
-        // 5. Broadcast state update snapshot over UDP to all connected clients
+        // 6. Broadcast state update snapshot over UDP to all connected clients
         let active_projectiles = game_loop.active_projectile_states();
         StateBroadcaster::broadcast(&server_socket, &session_manager, tick, active_projectiles);
 
-        // 6. Maintain 60Hz tick timing
+        // 7. Maintain 60Hz tick timing
         let elapsed = now.elapsed();
         if elapsed < tick_duration {
             thread::sleep(tick_duration - elapsed);

@@ -30,6 +30,22 @@ impl ServerProjectile {
     }
 }
 
+/// Calculate squared minimum distance from point P(px, py) to line segment AB(ax, ay -> bx, by).
+fn dist_to_segment_sq(px: f32, py: f32, ax: f32, ay: f32, bx: f32, by: f32) -> f32 {
+    let abx = bx - ax;
+    let aby = by - ay;
+    let apx = px - ax;
+    let apy = py - ay;
+    let ab_sq = abx * abx + aby * aby;
+    if ab_sq == 0.0 {
+        return apx * apx + apy * apy;
+    }
+    let t = ((apx * abx + apy * aby) / ab_sq).clamp(0.0, 1.0);
+    let proj_x = ax + t * abx;
+    let proj_y = ay + t * aby;
+    (px - proj_x).powi(2) + (py - proj_y).powi(2)
+}
+
 pub struct ServerGameLoop {
     pub tick: u64,
     pub tick_rate_hz: f32,
@@ -139,7 +155,7 @@ impl ServerGameLoop {
                         y: start_y,
                         dir_x,
                         dir_y,
-                        speed: 10.0,
+                        speed: 12.0,
                         lifetime: 3.0,
                     });
                 }
@@ -147,8 +163,8 @@ impl ServerGameLoop {
         }
     }
 
-    /// Advance active projectiles, checking wall collisions and lifetime decay.
-    pub fn update_projectiles(&mut self, map: &MazeMap, dt: f32) {
+    /// Advance active projectiles, checking wall collisions, player hit detection, HP damage, and lifetime decay.
+    pub fn update_projectiles(&mut self, sessions: &mut SessionManager, map: &MazeMap, dt: f32) {
         let mut active = Vec::new();
 
         for mut proj in self.projectiles.drain(..) {
@@ -157,9 +173,12 @@ impl ServerGameLoop {
                 continue;
             }
 
-            let next_x = proj.x + proj.dir_x * proj.speed * dt;
-            let next_y = proj.y + proj.dir_y * proj.speed * dt;
+            let start_x = proj.x;
+            let start_y = proj.y;
+            let next_x = start_x + proj.dir_x * proj.speed * dt;
+            let next_y = start_y + proj.dir_y * proj.speed * dt;
 
+            // 1. Wall collision check
             let grid_x = (next_x / map.tile_size).floor() as i32;
             let grid_y = (next_y / map.tile_size).floor() as i32;
 
@@ -175,6 +194,45 @@ impl ServerGameLoop {
 
             proj.x = next_x;
             proj.y = next_y;
+
+            // 2. Continuous Swept Hit Detection (Line Segment vs Player Circle)
+            let mut hit_player_id: Option<u32> = None;
+            let hit_radius = self.player_radius + 0.25;
+            let hit_radius_sq = hit_radius * hit_radius;
+
+            for session in sessions.sessions_mut().values_mut() {
+                if session.id != proj.owner_id && session.is_alive {
+                    let d_sq = dist_to_segment_sq(
+                        session.x, session.y,
+                        start_x, start_y,
+                        next_x, next_y,
+                    );
+                    if d_sq <= hit_radius_sq {
+                        hit_player_id = Some(session.id);
+                        let fatal = session.take_damage(25);
+                        if fatal {
+                            println!(
+                                "Player (ID: {}) was fragged by Player (ID: {})!",
+                                session.id, proj.owner_id
+                            );
+                        }
+                        break;
+                    }
+                }
+            }
+
+            if let Some(_target_id) = hit_player_id {
+                // Award score point to shooter
+                for shooter in sessions.sessions_mut().values_mut() {
+                    if shooter.id == proj.owner_id {
+                        shooter.score += 1;
+                        break;
+                    }
+                }
+                // Destroy projectile on player hit
+                continue;
+            }
+
             active.push(proj);
         }
 

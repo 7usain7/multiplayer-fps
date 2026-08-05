@@ -17,6 +17,7 @@ pub struct PlayerSession {
     pub max_health: u32,
     pub score: u32,
     pub is_alive: bool,
+    pub death_time: Option<Instant>,
     pub last_seen: Instant,
 }
 
@@ -32,6 +33,30 @@ impl PlayerSession {
             score: self.score,
             is_alive: self.is_alive,
         }
+    }
+
+    pub fn take_damage(&mut self, damage: u32) -> bool {
+        if !self.is_alive {
+            return false;
+        }
+
+        if self.health <= damage {
+            self.health = 0;
+            self.is_alive = false;
+            self.death_time = Some(Instant::now());
+            true // Fatal hit
+        } else {
+            self.health -= damage;
+            false
+        }
+    }
+
+    pub fn respawn(&mut self, spawn_x: f32, spawn_y: f32) {
+        self.x = spawn_x;
+        self.y = spawn_y;
+        self.health = self.max_health;
+        self.is_alive = true;
+        self.death_time = None;
     }
 }
 
@@ -104,6 +129,7 @@ impl SessionManager {
             max_health: 100,
             score: 0,
             is_alive: true,
+            death_time: None,
             last_seen: Instant::now(),
         };
 
@@ -167,12 +193,34 @@ impl SessionManager {
         }
     }
 
+    /// Respawn dead players after 3 seconds of death time.
+    pub fn respawn_dead_players(&mut self, map: &MazeMap) {
+        let spawns = map.find_spawn_positions();
+
+        for session in self.sessions.values_mut() {
+            if !session.is_alive {
+                if let Some(d_time) = session.death_time {
+                    if d_time.elapsed() >= Duration::from_secs(3) {
+                        let spawn_idx = (session.id as usize) % spawns.len().max(1);
+                        let (sx, sy) = spawns.get(spawn_idx).copied().unwrap_or((1.5, 1.5));
+                        session.respawn(sx, sy);
+                        println!("Player '{}' (ID: {}) respawned at ({:.1}, {:.1})", session.username, session.id, sx, sy);
+                    }
+                }
+            }
+        }
+    }
+
     pub fn get_session_mut(&mut self, addr: &SocketAddr) -> Option<&mut PlayerSession> {
         self.sessions.get_mut(addr)
     }
 
     pub fn sessions(&self) -> &HashMap<SocketAddr, PlayerSession> {
         &self.sessions
+    }
+
+    pub fn sessions_mut(&mut self) -> &mut HashMap<SocketAddr, PlayerSession> {
+        &mut self.sessions
     }
 
     pub fn active_player_states(&self) -> Vec<PlayerState> {

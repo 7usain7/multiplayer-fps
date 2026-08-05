@@ -115,4 +115,31 @@ mod tests {
             drop(server_net);
         }
     }
+
+    #[test]
+    fn test_hit_detection_and_damage() {
+        let mut session = PlayerSession {
+            id: 2,
+            username: "Target".to_string(),
+            addr: "127.0.0.1:12345".parse().unwrap(),
+            x: 2.0,
+            y: 2.0,
+            yaw: 0.0,
+            health: 100,
+            max_health: 100,
+            score: 0,
+            is_alive: true,
+            death_time: None,
+            last_seen: std::time::Instant::now(),
+        };
+
+        assert!(!session.take_damage(25));
+        assert_eq!(session.health, 75);
+        assert!(session.is_alive);
+
+        assert!(session.take_damage(75));
+        assert_eq!(session.health, 0);
+        assert!(!session.is_alive);
+        assert!(session.death_time.is_some());
+    }
 }
