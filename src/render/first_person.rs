@@ -159,8 +159,8 @@ impl FirstPersonRenderer {
             // Project opponent onto 2D screen coordinates
             let screen_ratio = angle_to_player.tan() / half_fov_tan;
             let sprite_center_x = (screen_w / 2.0) + (screen_ratio * (screen_w / 2.0));
-            let sprite_h = (screen_h / dist).clamp(10.0, screen_h * 1.5);
-            let sprite_w = sprite_h * 0.8;
+            let sprite_h = (screen_h * 0.55 / dist).clamp(6.0, screen_h * 0.85);
+            let sprite_w = sprite_h * 0.75;
             let sprite_top = half_h - sprite_h / 2.0;
             let sprite_left = sprite_center_x - sprite_w / 2.0;
 
@@ -198,14 +198,33 @@ impl FirstPersonRenderer {
                             );
                         }
                     } else {
-                        // Fallback Red body sprite
+                        // Procedural Eyeball Avatar (White Sclera with Iris & Pupil)
+                        let dist_factor: f32 = (dist / self.max_render_dist).clamp(0.0, 1.0);
+                        let shade = (1.0 - dist_factor).powf(0.8).max(0.2);
+
+                        // 1. Sclera (White of the eye)
                         draw_rectangle(
                             col_x,
                             sprite_top,
                             draw_w,
                             sprite_h,
-                            Color::new(0.9, 0.15, 0.15, 1.0),
+                            Color::new(0.95 * shade, 0.95 * shade, 0.95 * shade, 1.0),
                         );
+
+                        // 2. Iris & Pupil in center columns
+                        if sprite_w > 0.0 {
+                            let u = (col_x - sprite_left) / sprite_w;
+                            if u >= 0.25 && u <= 0.75 {
+                                let iris_top = sprite_top + sprite_h * 0.25;
+                                let iris_h = sprite_h * 0.5;
+                                let iris_color = if u >= 0.4 && u <= 0.6 {
+                                    Color::new(0.0, 0.0, 0.0, 1.0) // Black pupil
+                                } else {
+                                    Color::new(0.0, 0.5 * shade, 0.9 * shade, 1.0) // Blue iris
+                                };
+                                draw_rectangle(col_x, iris_top, draw_w, iris_h, iris_color);
+                            }
+                        }
                     }
                 }
             }

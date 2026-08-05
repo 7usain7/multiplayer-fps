@@ -109,24 +109,43 @@ async fn main() {
     let mut respawn_timer: f32 = 3.0;
     let mut recv_buf = [0u8; 4096];
 
-    // Load 4-directional eyeball opponent textures (Maze War style)
+    // Load 4-directional eyeball opponent textures with robust fallbacks
     let opponent_textures = async {
-        let front = load_texture("assets/Eye.png").await.ok()?;
-        let back = load_texture("assets/EyeBack.png").await.ok()?;
-        let left = load_texture("assets/EyeRight.png").await.ok()?;
-        let right = load_texture("assets/EyeLeft.png").await.ok()?;
+        let front_tex = match load_texture("assets/Eye.png").await {
+            Ok(t) => Some(t),
+            Err(_) => load_texture("Eye.png").await.ok(),
+        };
 
-        front.set_filter(FilterMode::Nearest);
-        back.set_filter(FilterMode::Nearest);
-        left.set_filter(FilterMode::Nearest);
-        right.set_filter(FilterMode::Nearest);
+        if let Some(front) = front_tex {
+            let back = match load_texture("assets/EyeBack.png").await {
+                Ok(t) => t,
+                Err(_) => load_texture("EyeBack.png").await.unwrap_or_else(|_| front.clone()),
+            };
+            let left = match load_texture("assets/EyeLeft.png").await {
+                Ok(t) => t,
+                Err(_) => load_texture("EyeLeft.png").await.unwrap_or_else(|_| front.clone()),
+            };
+            let right = match load_texture("assets/EyeRight.png").await {
+                Ok(t) => t,
+                Err(_) => load_texture("EyeRight.png").await.unwrap_or_else(|_| front.clone()),
+            };
 
-        Some(multiplayer_fps::render::DirectionalTextures {
-            front,
-            back,
-            left,
-            right,
-        })
+            front.set_filter(FilterMode::Nearest);
+            back.set_filter(FilterMode::Nearest);
+            left.set_filter(FilterMode::Nearest);
+            right.set_filter(FilterMode::Nearest);
+
+            println!("Successfully loaded opponent Eyeball textures!");
+            Some(multiplayer_fps::render::DirectionalTextures {
+                front,
+                back,
+                left,
+                right,
+            })
+        } else {
+            eprintln!("Warning: Could not locate assets/Eye.png. Using procedural Eyeball avatar fallback.");
+            None
+        }
     }.await;
 
     loop {
