@@ -3,6 +3,7 @@ pub mod maze;
 pub mod physics;
 pub mod protocol;
 pub mod render;
+pub mod server;
 
 pub use input::ClientInputController;
 pub use maze::{get_level, parse_ascii_map, MazeMap, TileType};
@@ -12,6 +13,7 @@ pub use protocol::{
     ServerPacket,
 };
 pub use render::{FirstPersonRenderer, HudRenderer, MiniMapRenderer};
+pub use server::ServerNetworkSocket;
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -106,4 +108,13 @@ mod tests {
             assert!(!spawns.is_empty(), "Level {} must have spawn positions", lvl);
         }
     }
+
+    #[test]
+    fn test_udp_socket_binding() {
+        if let Ok(server_net) = ServerNetworkSocket::bind("127.0.0.1:0") {
+            // Binding succeeded
+            drop(server_net);
+        }
+    }
+
 }
