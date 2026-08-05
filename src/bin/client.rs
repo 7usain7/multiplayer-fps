@@ -100,7 +100,7 @@ async fn main() {
     let mut my_player_id: Option<u32> = None;
 
     let mut other_players: Vec<PlayerState> = Vec::new();
-    let health: u32 = 100;
+    let mut health: u32 = 100;
     let max_health: u32 = 100;
     let mut recv_buf = [0u8; 4096];
 
@@ -123,7 +123,15 @@ async fn main() {
                                     my_player_id = Some(player_id);
                                     map = server_map;
                                     current_level = level;
-                                    println!("Received Welcome! Assigned Player ID: {}", player_id);
+
+                                    // Set initial position to server spawn point
+                                    let server_spawns = map.find_spawn_positions();
+                                    let spawn_idx = (player_id as usize) % server_spawns.len().max(1);
+                                    if let Some(&(sx, sy)) = server_spawns.get(spawn_idx) {
+                                        pos_x = sx;
+                                        pos_y = sy;
+                                    }
+                                    println!("Received Welcome! Assigned Player ID: {} at ({:.1}, {:.1})", player_id, pos_x, pos_y);
                                 }
                                 ServerPacket::StateUpdate {
                                     players,
@@ -132,16 +140,30 @@ async fn main() {
                                     let mut opponents = Vec::new();
                                     for p in players {
                                         if Some(p.id) == my_player_id {
-                                            // Reconcile server position if desired
+                                            // Reconcile position if server and local prediction diverge
+                                            let dist_sq = (pos_x - p.x).powi(2) + (pos_y - p.y).powi(2);
+                                            if dist_sq > 0.8 {
+                                                pos_x = p.x;
+                                                pos_y = p.y;
+                                            }
+                                            health = p.health;
                                         } else {
                                             opponents.push(p);
                                         }
                                     }
                                     other_players = opponents;
                                 }
+                                ServerPacket::PlayerLeft { id } => {
+                                    other_players.retain(|p| p.id != id);
+                                }
                                 ServerPacket::LevelChange { new_level, map: new_map } => {
                                     current_level = new_level;
                                     map = new_map;
+                                    let server_spawns = map.find_spawn_positions();
+                                    if let Some(&(sx, sy)) = server_spawns.first() {
+                                        pos_x = sx;
+                                        pos_y = sy;
+                                    }
                                 }
                                 _ => {}
                             }

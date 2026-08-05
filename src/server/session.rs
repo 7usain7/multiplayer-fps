@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use crate::maze::MazeMap;
 use crate::protocol::{PlayerState, ServerPacket};
 use crate::server::net::ServerNetworkSocket;
@@ -46,7 +46,7 @@ impl Default for SessionManager {
         Self {
             next_player_id: 1,
             sessions: HashMap::new(),
-            max_clients: 16, // Supports >10 connections as required by requirements.md
+            max_clients: 16,
         }
     }
 }
@@ -60,9 +60,14 @@ impl SessionManager {
         }
     }
 
+    /// Refresh heartbeat timestamp whenever any packet arrives from an active client address.
+    pub fn touch_session(&mut self, addr: &SocketAddr) {
+        if let Some(session) = self.sessions.get_mut(addr) {
+            session.last_seen = Instant::now();
+        }
+    }
+
     /// Process a new client connection handshake request.
-    /// Assigns spawn point, sends `Welcome` packet to new client,
-    /// and broadcasts `PlayerJoined` to existing clients.
     pub fn handle_connect(
         &mut self,
         socket: &ServerNetworkSocket,
@@ -72,10 +77,7 @@ impl SessionManager {
         map: &MazeMap,
     ) {
         if self.sessions.contains_key(&addr) {
-            // Already connected, refresh heartbeat
-            if let Some(session) = self.sessions.get_mut(&addr) {
-                session.last_seen = Instant::now();
-            }
+            self.touch_session(&addr);
             return;
         }
 
@@ -87,7 +89,6 @@ impl SessionManager {
         let player_id = self.next_player_id;
         self.next_player_id += 1;
 
-        // Choose spawn location
         let spawns = map.find_spawn_positions();
         let spawn_idx = (player_id as usize) % spawns.len().max(1);
         let (spawn_x, spawn_y) = spawns.get(spawn_idx).copied().unwrap_or((1.5, 1.5));
@@ -106,13 +107,13 @@ impl SessionManager {
             last_seen: Instant::now(),
         };
 
-        self.sessions.insert(addr, new_session.clone());
+        self.sessions.insert(addr, new_session);
         println!(
             "Player '{}' (ID: {}) connected from {}",
             username, player_id, addr
         );
 
-        // 1. Send Welcome packet to new player
+        // Send Welcome packet to new player
         let welcome_packet = ServerPacket::Welcome {
             player_id,
             map: map.clone(),
@@ -120,7 +121,7 @@ impl SessionManager {
         };
         let _ = socket.send_to(addr, &welcome_packet);
 
-        // 2. Notify existing players about the new player
+        // Notify existing players
         let joined_packet = ServerPacket::PlayerJoined {
             id: player_id,
             username,
@@ -129,6 +130,40 @@ impl SessionManager {
             if other_addr != addr {
                 let _ = socket.send_to(other_addr, &joined_packet);
             }
+        }
+    }
+
+    /// Remove a player session and notify remaining connected clients.
+    pub fn remove_session(&mut self, socket: &ServerNetworkSocket, addr: SocketAddr, reason: &str) {
+        if let Some(session) = self.sessions.remove(&addr) {
+            println!(
+                "Player '{}' (ID: {}) disconnected ({})",
+                session.username, session.id, reason
+            );
+
+            let left_packet = ServerPacket::PlayerLeft { id: session.id };
+            for &other_addr in self.sessions.keys() {
+                let _ = socket.send_to(other_addr, &left_packet);
+            }
+        }
+    }
+
+    /// Check all active sessions and drop any client that hasn't sent a packet within `timeout_duration`.
+    pub fn clean_timed_out_sessions(
+        &mut self,
+        socket: &ServerNetworkSocket,
+        timeout_duration: Duration,
+    ) {
+        let now = Instant::now();
+        let timed_out_addrs: Vec<SocketAddr> = self
+            .sessions
+            .iter()
+            .filter(|(_, session)| now.duration_since(session.last_seen) > timeout_duration)
+            .map(|(&addr, _)| addr)
+            .collect();
+
+        for addr in timed_out_addrs {
+            self.remove_session(socket, addr, "heartbeat timeout");
         }
     }
 

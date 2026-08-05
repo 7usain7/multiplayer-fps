@@ -37,7 +37,7 @@ impl ServerGameLoop {
         addr: SocketAddr,
         packet: ClientPacket,
         map: &MazeMap,
-        dt: f32,
+        _dt: f32,
     ) {
         if let ClientPacket::Input {
             move_x,
@@ -55,11 +55,20 @@ impl ServerGameLoop {
                 session.yaw = yaw;
 
                 if move_x != 0.0 || move_y != 0.0 {
-                    let dx = move_x * dt;
-                    let dy = move_y * dt;
+                    // move_x and move_y are actual displacement (dx, dy) from the client.
+                    // Prevent speed-hacking by clamping the maximum displacement per packet.
+                    let len_sq = move_x * move_x + move_y * move_y;
+                    let max_displacement = 0.5; // ~5.0 units/s at 10hz, plenty for 2.5 speed at 60hz (0.04 per frame)
+                    
+                    let (valid_dx, valid_dy) = if len_sq > max_displacement * max_displacement {
+                        let scale = max_displacement / len_sq.sqrt();
+                        (move_x * scale, move_y * scale)
+                    } else {
+                        (move_x, move_y)
+                    };
 
                     let (new_x, new_y) =
-                        move_and_slide(map, session.x, session.y, dx, dy, self.player_radius);
+                        move_and_slide(map, session.x, session.y, valid_dx, valid_dy, self.player_radius);
 
                     session.x = new_x;
                     session.y = new_y;

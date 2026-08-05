@@ -14,8 +14,8 @@ impl Default for ClientInputController {
     fn default() -> Self {
         Self {
             sequence: 0,
-            move_speed: 3.5,
-            turn_speed: 2.5,
+            move_speed: 2.5,
+            turn_speed: 2.2,
             player_radius: 0.3,
         }
     }
@@ -61,20 +61,20 @@ impl ClientInputController {
             forward_dir -= 1.0;
         }
 
-        let mut move_x = 0.0;
-        let mut move_y = 0.0;
+        let mut input_dx = 0.0;
+        let mut input_dy = 0.0;
         let mut new_x = current_x;
         let mut new_y = current_y;
 
         if forward_dir != 0.0 {
-            move_x = yaw.cos() * forward_dir * self.move_speed;
-            move_y = yaw.sin() * forward_dir * self.move_speed;
+            let move_vx = yaw.cos() * forward_dir * self.move_speed;
+            let move_vy = yaw.sin() * forward_dir * self.move_speed;
 
-            let dx = move_x * dt;
-            let dy = move_y * dt;
+            input_dx = move_vx * dt;
+            input_dy = move_vy * dt;
 
             let (next_x, next_y) =
-                move_and_slide(map, current_x, current_y, dx, dy, self.player_radius);
+                move_and_slide(map, current_x, current_y, input_dx, input_dy, self.player_radius);
             new_x = next_x;
             new_y = next_y;
         }
@@ -84,8 +84,8 @@ impl ClientInputController {
 
         let packet = ClientPacket::Input {
             sequence: self.sequence,
-            move_x,
-            move_y,
+            move_x: input_dx,
+            move_y: input_dy,
             yaw,
             shoot,
         };

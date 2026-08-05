@@ -18,7 +18,7 @@ fn main() {
         }
     };
 
-    let current_level: u8 = 1;
+    let current_level: u8 = 3;
     let map = get_level(current_level);
     let mut session_manager = SessionManager::new(16);
     let mut game_loop = ServerGameLoop::default();
@@ -26,6 +26,7 @@ fn main() {
     println!("Authoritative 60Hz Game Loop active on {}", bind_addr);
 
     let tick_duration = Duration::from_secs_f32(1.0 / 60.0);
+    let timeout_duration = Duration::from_secs(10);
     let mut last_tick_time = Instant::now();
 
     loop {
@@ -36,6 +37,9 @@ fn main() {
         // 1. Process all incoming UDP client packets
         let packets = server_socket.poll_packets();
         for (src_addr, packet) in packets {
+            // Touch heartbeat for any active packet from client
+            session_manager.touch_session(&src_addr);
+
             match packet {
                 ClientPacket::Connect { username } => {
                     session_manager.handle_connect(
@@ -54,18 +58,21 @@ fn main() {
                     let _ = server_socket.send_to(src_addr, &pong);
                 }
                 ClientPacket::Disconnect => {
-                    // Session disconnect handled in step 3.5
+                    session_manager.remove_session(&server_socket, src_addr, "client disconnect");
                 }
             }
         }
 
-        // 2. Advance server tick
+        // 2. Clean up timed-out player sessions (>10 seconds inactivity)
+        session_manager.clean_timed_out_sessions(&server_socket, timeout_duration);
+
+        // 3. Advance server tick
         let tick = game_loop.advance_tick();
 
-        // 3. Broadcast state update snapshot over UDP to all connected clients
+        // 4. Broadcast state update snapshot over UDP to all connected clients
         StateBroadcaster::broadcast(&server_socket, &session_manager, tick, Vec::new());
 
-        // 4. Maintain 60Hz tick timing
+        // 5. Maintain 60Hz tick timing
         let elapsed = now.elapsed();
         if elapsed < tick_duration {
             thread::sleep(tick_duration - elapsed);
