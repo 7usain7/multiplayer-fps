@@ -84,7 +84,15 @@ impl FirstPersonRenderer {
                 let dist_factor: f32 = (hit.distance / self.max_render_dist).clamp(0.0, 1.0);
                 let shade = (1.0 - dist_factor).powf(1.2);
 
-                let base_color = if hit.is_vertical_side {
+                let is_exit = map.get_tile(hit.grid_x, hit.grid_y) == Some(crate::maze::TileType::Exit);
+
+                let base_color = if is_exit {
+                    if hit.is_vertical_side {
+                        Color::new(1.0 * shade, 0.85 * shade, 0.1 * shade, 1.0)
+                    } else {
+                        Color::new(0.85 * shade, 0.7 * shade, 0.05 * shade, 1.0)
+                    }
+                } else if hit.is_vertical_side {
                     Color::new(0.0 * shade, 0.7 * shade, 0.9 * shade, 1.0)
                 } else {
                     Color::new(0.0 * shade, 0.5 * shade, 0.7 * shade, 1.0)

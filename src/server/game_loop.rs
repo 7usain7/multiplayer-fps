@@ -243,6 +243,23 @@ impl ServerGameLoop {
         self.projectiles.iter().map(|p| p.to_state()).collect()
     }
 
+    /// Check if any active player has stepped onto an Exit tile ('E').
+    /// Returns the player ID if an exit was reached.
+    pub fn check_level_exit(&self, sessions: &SessionManager, map: &MazeMap) -> Option<u32> {
+        for session in sessions.sessions().values() {
+            if session.is_alive {
+                let gx = (session.x / map.tile_size).floor() as i32;
+                let gy = (session.y / map.tile_size).floor() as i32;
+                if gx >= 0 && gy >= 0 && (gx as usize) < map.width && (gy as usize) < map.height {
+                    if map.get_tile(gx as usize, gy as usize) == Some(crate::maze::TileType::Exit) {
+                        return Some(session.id);
+                    }
+                }
+            }
+        }
+        None
+    }
+
     pub fn advance_tick(&mut self) -> u64 {
         self.tick += 1;
         self.tick

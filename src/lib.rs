@@ -142,4 +142,41 @@ mod tests {
         assert!(!session.is_alive);
         assert!(session.death_time.is_some());
     }
+
+    #[test]
+    fn test_level_progression_and_exit_detection() {
+        let mut map = MazeMap::new(5, 5, TileType::Empty);
+        map.set_tile(3, 3, TileType::Exit);
+
+        let mut sessions = SessionManager::new(10);
+        let game_loop = ServerGameLoop::default();
+
+        let session = PlayerSession {
+            id: 1,
+            username: "Explorer".to_string(),
+            addr: "127.0.0.1:11111".parse().unwrap(),
+            x: 1.5,
+            y: 1.5,
+            yaw: 0.0,
+            health: 100,
+            max_health: 100,
+            score: 0,
+            is_alive: true,
+            death_time: None,
+            last_seen: std::time::Instant::now(),
+        };
+        sessions.sessions_mut().insert(session.addr, session);
+
+        // Player is at (1.5, 1.5), exit is at (3, 3) -> should return None
+        assert_eq!(game_loop.check_level_exit(&sessions, &map), None);
+
+        // Move player onto Exit tile at (3.5, 3.5)
+        if let Some(s) = sessions.sessions_mut().values_mut().next() {
+            s.x = 3.5;
+            s.y = 3.5;
+        }
+
+        // Should detect player reaching exit
+        assert_eq!(game_loop.check_level_exit(&sessions, &map), Some(1));
+    }
 }

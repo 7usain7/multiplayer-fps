@@ -18,8 +18,8 @@ fn main() {
         }
     };
 
-    let current_level: u8 = 1;
-    let map = get_level(current_level);
+    let mut current_level: u8 = 1;
+    let mut map = get_level(current_level);
     let mut session_manager = SessionManager::new(16);
     let mut game_loop = ServerGameLoop::default();
 
@@ -75,11 +75,45 @@ fn main() {
         // 5. Advance server tick
         let tick = game_loop.advance_tick();
 
-        // 6. Broadcast state update snapshot over UDP to all connected clients
+        // 6. Check for Level Exit condition (Multi-Level Progression: Level 1 -> 2 -> 3 -> 1)
+        if let Some(winner_id) = game_loop.check_level_exit(&session_manager, &map) {
+            let next_level = if current_level >= 3 { 1 } else { current_level + 1 };
+            println!(
+                "Player (ID: {}) reached the Level Exit! Advancing level from {} to {}...",
+                winner_id, current_level, next_level
+            );
+
+            current_level = next_level;
+            map = get_level(current_level);
+            game_loop.projectiles.clear();
+
+            // Teleport all connected players to spawn positions in the new level
+            let spawns = map.find_spawn_positions();
+            for session in session_manager.sessions_mut().values_mut() {
+                let spawn_idx = (session.id as usize) % spawns.len().max(1);
+                let (sx, sy) = spawns.get(spawn_idx).copied().unwrap_or((1.5, 1.5));
+                session.x = sx;
+                session.y = sy;
+                session.health = session.max_health;
+                session.is_alive = true;
+                session.death_time = None;
+            }
+
+            // Broadcast LevelChange packet to all connected clients
+            let level_change_packet = multiplayer_fps::protocol::ServerPacket::LevelChange {
+                new_level: current_level,
+                map: map.clone(),
+            };
+            for &addr in session_manager.sessions().keys() {
+                let _ = server_socket.send_to(addr, &level_change_packet);
+            }
+        }
+
+        // 7. Broadcast state update snapshot over UDP to all connected clients
         let active_projectiles = game_loop.active_projectile_states();
         StateBroadcaster::broadcast(&server_socket, &session_manager, tick, active_projectiles);
 
-        // 7. Maintain 60Hz tick timing
+        // 8. Maintain 60Hz tick timing
         let elapsed = now.elapsed();
         if elapsed < tick_duration {
             thread::sleep(tick_duration - elapsed);
