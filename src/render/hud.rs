@@ -160,7 +160,27 @@ impl HudRenderer {
             WHITE,
         );
 
-        // 5. Draw Center Respawn Countdown Overlay when health == 0
+        // 5. Draw Precision Center Crosshair (Screen Center)
+        if health > 0 {
+            let center_y = screen_h / 2.0;
+            let ch_size = 6.0; // Line length
+            let ch_gap = 4.0;  // Gap around center dot
+            let ch_color = Color::new(0.0, 1.0, 0.5, 0.85); // Neon green crosshair
+
+            // Center dot
+            draw_circle(center_x, center_y, 1.5, Color::new(1.0, 1.0, 1.0, 0.9));
+
+            // Top reticle line
+            draw_line(center_x, center_y - ch_gap - ch_size, center_x, center_y - ch_gap, 1.5, ch_color);
+            // Bottom reticle line
+            draw_line(center_x, center_y + ch_gap, center_x, center_y + ch_gap + ch_size, 1.5, ch_color);
+            // Left reticle line
+            draw_line(center_x - ch_gap - ch_size, center_y, center_x - ch_gap, center_y, 1.5, ch_color);
+            // Right reticle line
+            draw_line(center_x + ch_gap, center_y, center_x + ch_gap + ch_size, center_y, 1.5, ch_color);
+        }
+
+        // 6. Draw Center Respawn Countdown Overlay when health == 0
         if health == 0 {
             // Dark red semi-transparent vignette/panel
             draw_rectangle(0.0, 0.0, screen_w, screen_h, Color::new(0.2, 0.0, 0.0, 0.5));
