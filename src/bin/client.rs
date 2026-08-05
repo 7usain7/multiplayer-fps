@@ -105,6 +105,8 @@ async fn main() {
     let mut active_projectiles: Vec<ProjectileState> = Vec::new();
     let mut health: u32 = 100;
     let max_health: u32 = 100;
+    let mut my_score: u32 = 0;
+    let mut respawn_timer: f32 = 3.0;
     let mut recv_buf = [0u8; 4096];
 
     // Load 4-directional eyeball opponent textures (Maze War style)
@@ -170,6 +172,7 @@ async fn main() {
                                                 pos_y = p.y;
                                             }
                                             health = p.health;
+                                            my_score = p.score;
                                         } else {
                                             opponents.push(p);
                                         }
@@ -254,6 +257,12 @@ async fn main() {
         );
 
         // 6. Render On-Screen HUD & Real-Time FPS Counter
+        if health == 0 {
+            respawn_timer = (respawn_timer - dt).max(0.0);
+        } else {
+            respawn_timer = 3.0;
+        }
+
         let fps = get_fps();
         let server_str = config.server_addr.to_string();
         HudRenderer::draw(
@@ -263,6 +272,9 @@ async fn main() {
             current_level,
             health,
             max_health,
+            respawn_timer,
+            my_score,
+            &smoothed_opponents,
             screen_width(),
             screen_height(),
         );

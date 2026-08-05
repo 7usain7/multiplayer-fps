@@ -1,9 +1,10 @@
 use macroquad::prelude::*;
+use crate::protocol::PlayerState;
 
 pub struct HudRenderer;
 
 impl HudRenderer {
-    /// Render on-screen HUD overlay including real-time FPS counter, health, and player info.
+    /// Render on-screen HUD overlay including real-time FPS counter, health, scoreboard, and player info.
     pub fn draw(
         fps: i32,
         username: &str,
@@ -11,6 +12,9 @@ impl HudRenderer {
         level_num: u8,
         health: u32,
         max_health: u32,
+        respawn_timer: f32,
+        my_score: u32,
+        opponents: &[PlayerState],
         screen_w: f32,
         screen_h: f32,
     ) {
@@ -65,7 +69,43 @@ impl HudRenderer {
         );
         draw_text(&banner_text, banner_x, banner_y, banner_font_size, WHITE);
 
-        // 3. Draw Health Bar (Bottom Left Corner)
+        // 3. Draw Top-Right Scoreboard Panel (Below FPS Pill)
+        let sb_x = screen_w - 170.0;
+        let mut sb_y = 65.0;
+
+        let mut score_list: Vec<(&str, u32, bool)> = Vec::new();
+        score_list.push((username, my_score, true));
+        for p in opponents {
+            score_list.push((&p.username, p.score, false));
+        }
+        score_list.sort_by(|a, b| b.1.cmp(&a.1)); // Highest score first
+
+        let sb_w = 150.0;
+        let row_h = 18.0;
+        let header_h = 22.0;
+        let sb_h = header_h + score_list.len() as f32 * row_h + 8.0;
+
+        // Dark background box with gold border
+        draw_rectangle(sb_x - 8.0, sb_y - 16.0, sb_w + 8.0, sb_h, Color::new(0.0, 0.0, 0.0, 0.7));
+        draw_rectangle_lines(sb_x - 8.0, sb_y - 16.0, sb_w + 8.0, sb_h, 1.0, Color::new(1.0, 0.8, 0.0, 0.8));
+
+        // Header
+        draw_text("SCOREBOARD", sb_x, sb_y, 14.0, Color::new(1.0, 0.8, 0.0, 1.0));
+        sb_y += row_h;
+
+        // Player score entries
+        for (name, score, is_self) in score_list {
+            let color = if is_self {
+                Color::new(0.0, 1.0, 0.5, 1.0) // Bright cyan-green for local player
+            } else {
+                Color::new(0.9, 0.9, 0.9, 0.9)
+            };
+            let text = format!("{}: {} pts", name, score);
+            draw_text(&text, sb_x, sb_y, 13.0, color);
+            sb_y += row_h;
+        }
+
+        // 4. Draw Health Bar (Bottom Left Corner)
         let health_bar_w = 160.0;
         let health_bar_h = 16.0;
         let health_x = 20.0;
@@ -119,5 +159,34 @@ impl HudRenderer {
             font_size,
             WHITE,
         );
+
+        // 5. Draw Center Respawn Countdown Overlay when health == 0
+        if health == 0 {
+            // Dark red semi-transparent vignette/panel
+            draw_rectangle(0.0, 0.0, screen_w, screen_h, Color::new(0.2, 0.0, 0.0, 0.5));
+
+            let elim_text = "YOU WERE ELIMINATED!";
+            let elim_font_size = 36.0;
+            let elim_dim = measure_text(elim_text, None, elim_font_size as u16, 1.0);
+            draw_text(
+                elim_text,
+                center_x - elim_dim.width / 2.0,
+                screen_h / 2.0 - 20.0,
+                elim_font_size,
+                Color::new(1.0, 0.25, 0.25, 1.0),
+            );
+
+            let count_num = (respawn_timer.ceil() as u32).clamp(1, 3);
+            let respawn_text = format!("Respawn in {}...", count_num);
+            let respawn_font_size = 28.0;
+            let respawn_dim = measure_text(&respawn_text, None, respawn_font_size as u16, 1.0);
+            draw_text(
+                &respawn_text,
+                center_x - respawn_dim.width / 2.0,
+                screen_h / 2.0 + 30.0,
+                respawn_font_size,
+                Color::new(1.0, 0.9, 0.2, 1.0),
+            );
+        }
     }
 }

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
+use rand::Rng;
 use crate::maze::MazeMap;
 use crate::protocol::{PlayerState, ServerPacket};
 use crate::server::net::ServerNetworkSocket;
@@ -193,7 +194,7 @@ impl SessionManager {
         }
     }
 
-    /// Respawn dead players after 3 seconds of death time.
+    /// Respawn dead players after 3 seconds of death time at a random spawn point.
     pub fn respawn_dead_players(&mut self, map: &MazeMap) {
         let spawns = map.find_spawn_positions();
 
@@ -201,10 +202,14 @@ impl SessionManager {
             if !session.is_alive {
                 if let Some(d_time) = session.death_time {
                     if d_time.elapsed() >= Duration::from_secs(3) {
-                        let spawn_idx = (session.id as usize) % spawns.len().max(1);
+                        let spawn_idx = if !spawns.is_empty() {
+                            rand::thread_rng().gen_range(0..spawns.len())
+                        } else {
+                            0
+                        };
                         let (sx, sy) = spawns.get(spawn_idx).copied().unwrap_or((1.5, 1.5));
                         session.respawn(sx, sy);
-                        println!("Player '{}' (ID: {}) respawned at ({:.1}, {:.1})", session.username, session.id, sx, sy);
+                        println!("Player '{}' (ID: {}) respawned at random spawn ({:.1}, {:.1})", session.username, session.id, sx, sy);
                     }
                 }
             }

@@ -196,7 +196,7 @@ impl ServerGameLoop {
             proj.y = next_y;
 
             // 2. Continuous Swept Hit Detection (Line Segment vs Player Circle)
-            let mut hit_player_id: Option<u32> = None;
+            let mut hit_info: Option<(u32, bool)> = None; // (target_id, is_fatal)
             let hit_radius = self.player_radius + 0.25;
             let hit_radius_sq = hit_radius * hit_radius;
 
@@ -208,8 +208,8 @@ impl ServerGameLoop {
                         next_x, next_y,
                     );
                     if d_sq <= hit_radius_sq {
-                        hit_player_id = Some(session.id);
                         let fatal = session.take_damage(25);
+                        hit_info = Some((session.id, fatal));
                         if fatal {
                             println!(
                                 "Player (ID: {}) was fragged by Player (ID: {})!",
@@ -221,11 +221,12 @@ impl ServerGameLoop {
                 }
             }
 
-            if let Some(_target_id) = hit_player_id {
-                // Award score point to shooter
+            if let Some((_target_id, fatal)) = hit_info {
+                // Award +1 pt for hit, plus +5 bonus pts for elimination (total 6 pts)
+                let pts_awarded = if fatal { 6 } else { 1 };
                 for shooter in sessions.sessions_mut().values_mut() {
                     if shooter.id == proj.owner_id {
-                        shooter.score += 1;
+                        shooter.score += pts_awarded;
                         break;
                     }
                 }
