@@ -100,11 +100,32 @@ async fn main() {
     let mut yaw: f32 = 0.0;
     let mut my_player_id: Option<u32> = None;
 
-    let mut other_players: Vec<PlayerState> = Vec::new();
+    let mut target_opponents: Vec<PlayerState> = Vec::new();
+    let mut smoothed_opponents: Vec<PlayerState> = Vec::new();
     let mut active_projectiles: Vec<ProjectileState> = Vec::new();
     let mut health: u32 = 100;
     let max_health: u32 = 100;
     let mut recv_buf = [0u8; 4096];
+
+    // Load 4-directional eyeball opponent textures (Maze War style)
+    let opponent_textures = async {
+        let front = load_texture("assets/Eye.png").await.ok()?;
+        let back = load_texture("assets/EyeBack.png").await.ok()?;
+        let left = load_texture("assets/EyeRight.png").await.ok()?;
+        let right = load_texture("assets/EyeLeft.png").await.ok()?;
+
+        front.set_filter(FilterMode::Nearest);
+        back.set_filter(FilterMode::Nearest);
+        left.set_filter(FilterMode::Nearest);
+        right.set_filter(FilterMode::Nearest);
+
+        Some(multiplayer_fps::render::DirectionalTextures {
+            front,
+            back,
+            left,
+            right,
+        })
+    }.await;
 
     loop {
         let dt = get_frame_time();
@@ -153,11 +174,12 @@ async fn main() {
                                             opponents.push(p);
                                         }
                                     }
-                                    other_players = opponents;
+                                    target_opponents = opponents;
                                     active_projectiles = projectiles;
                                 }
                                 ServerPacket::PlayerLeft { id } => {
-                                    other_players.retain(|p| p.id != id);
+                                    target_opponents.retain(|p| p.id != id);
+                                    smoothed_opponents.retain(|p| p.id != id);
                                 }
                                 ServerPacket::LevelChange { new_level, map: new_map } => {
                                     current_level = new_level;
@@ -180,7 +202,22 @@ async fn main() {
             }
         }
 
-        // 2. Sample input and transmit input packet to server over UDP
+        // 2. Smoothly interpolate opponent player positions
+        smoothed_opponents.retain(|s| target_opponents.iter().any(|t| t.id == s.id));
+        for target in &target_opponents {
+            if let Some(smoothed) = smoothed_opponents.iter_mut().find(|s| s.id == target.id) {
+                smoothed.x = smoothed.x * 0.80 + target.x * 0.20;
+                smoothed.y = smoothed.y * 0.80 + target.y * 0.20;
+                smoothed.yaw = target.yaw;
+                smoothed.health = target.health;
+                smoothed.score = target.score;
+                smoothed.is_alive = target.is_alive;
+            } else {
+                smoothed_opponents.push(target.clone());
+            }
+        }
+
+        // 3. Sample input and transmit input packet to server over UDP
         let input_res = input_controller.update(&map, pos_x, pos_y, yaw, dt);
         pos_x = input_res.new_x;
         pos_y = input_res.new_y;
@@ -192,21 +229,31 @@ async fn main() {
 
         clear_background(BLACK);
 
-        // 3. Render 3D First-Person View
-        fp_renderer.draw(&map, pos_x, pos_y, yaw, screen_width(), screen_height());
+        // 4. Render 3D First-Person View (including 3D opponents and projectiles)
+        fp_renderer.draw(
+            &map,
+            pos_x,
+            pos_y,
+            yaw,
+            screen_width(),
+            screen_height(),
+            &smoothed_opponents,
+            &active_projectiles,
+            opponent_textures.as_ref(),
+        );
 
-        // 4. Render 2D Mini-Map Overlay (including connected opponents & active projectiles)
+        // 5. Render 2D Mini-Map Overlay (including connected opponents & active projectiles)
         minimap_renderer.draw(
             &map,
             pos_x,
             pos_y,
             yaw,
             fp_renderer.fov_rad,
-            &other_players,
+            &smoothed_opponents,
             &active_projectiles,
         );
 
-        // 5. Render On-Screen HUD & Real-Time FPS Counter
+        // 6. Render On-Screen HUD & Real-Time FPS Counter
         let fps = get_fps();
         let server_str = config.server_addr.to_string();
         HudRenderer::draw(
