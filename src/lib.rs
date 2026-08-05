@@ -13,7 +13,7 @@ pub use protocol::{
     ServerPacket,
 };
 pub use render::{FirstPersonRenderer, HudRenderer, MiniMapRenderer};
-pub use server::{PlayerSession, ServerNetworkSocket, SessionManager};
+pub use server::{PlayerSession, ServerGameLoop, ServerNetworkSocket, SessionManager};
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")

@@ -1,8 +1,8 @@
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use multiplayer_fps::maze::get_level;
 use multiplayer_fps::protocol::ClientPacket;
-use multiplayer_fps::{version, ServerNetworkSocket, SessionManager};
+use multiplayer_fps::{version, ServerGameLoop, ServerNetworkSocket, SessionManager};
 
 fn main() {
     println!("Starting Multiplayer FPS Server v{}...", version());
@@ -19,10 +19,19 @@ fn main() {
     let current_level: u8 = 1;
     let map = get_level(current_level);
     let mut session_manager = SessionManager::new(16);
+    let mut game_loop = ServerGameLoop::default();
 
-    println!("Server loop running on {}. Ready for player handshakes...", bind_addr);
+    println!("Authoritative 60Hz Game Loop active on {}", bind_addr);
+
+    let tick_duration = Duration::from_secs_f32(1.0 / 60.0);
+    let mut last_tick_time = Instant::now();
 
     loop {
+        let now = Instant::now();
+        let dt = now.duration_since(last_tick_time).as_secs_f32();
+        last_tick_time = now;
+
+        // 1. Process all incoming UDP client packets
         let packets = server_socket.poll_packets();
         for (src_addr, packet) in packets {
             match packet {
@@ -35,20 +44,26 @@ fn main() {
                         &map,
                     );
                 }
+                ClientPacket::Input { .. } => {
+                    game_loop.process_input(&mut session_manager, src_addr, packet, &map, dt);
+                }
                 ClientPacket::Ping { timestamp } => {
                     let pong = multiplayer_fps::ServerPacket::Pong { timestamp };
                     let _ = server_socket.send_to(src_addr, &pong);
                 }
-                _ => {
-                    // Update heartbeat for active sessions
-                    if let Some(session) = session_manager.get_session_mut(&src_addr) {
-                        session.last_seen = std::time::Instant::now();
-                    }
+                ClientPacket::Disconnect => {
+                    // Session disconnect handled in step 3.5
                 }
             }
         }
 
-        // Tick loop ~60Hz
-        thread::sleep(Duration::from_millis(16));
+        // 2. Advance server tick
+        game_loop.advance_tick();
+
+        // 3. Maintain 60Hz tick timing
+        let elapsed = now.elapsed();
+        if elapsed < tick_duration {
+            thread::sleep(tick_duration - elapsed);
+        }
     }
 }
